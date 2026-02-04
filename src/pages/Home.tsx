@@ -1,57 +1,131 @@
-import MessageListItem from '../components/MessageListItem';
-import { useState } from 'react';
-import { Message, getMessages } from '../data/messages';
+import { useEffect, useState } from 'react';
+import axios from 'axios';
 import {
   IonContent,
   IonHeader,
   IonList,
   IonPage,
-  IonRefresher,
-  IonRefresherContent,
   IonTitle,
   IonToolbar,
-  useIonViewWillEnter
+  IonItem,
+  IonLabel,
+  IonAvatar,
+  IonRefresher,
+  IonRefresherContent,
+  IonSpinner,
+  IonText
 } from '@ionic/react';
 import './Home.css';
 
+// Interfaz de los personajes
+interface Character {
+  id: number;
+  name: string;
+  gender: string;
+  status: string;
+  species: string;
+  image: string;
+}
+
 const Home: React.FC = () => {
 
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [characters, setCharacters] = useState<Character[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useIonViewWillEnter(() => {
-    const msgs = getMessages();
-    setMessages(msgs);
-  });
+  // GET: obtener personajes de la API
+  const loadCharacters = async () => {
+    setLoading(true);
+    setError(null);
 
-  const refresh = (e: CustomEvent) => {
-    setTimeout(() => {
-      e.detail.complete();
-    }, 3000);
+    try {
+      const response = await axios.get(
+        'https://futuramaapi.com/api/characters',
+        {
+          params: {
+            orderBy: 'id',
+            orderByDirection: 'asc',
+            page: 1,
+            size: 50
+          }
+        }
+      );
+
+      setCharacters(response.data.items);
+    } catch (err) {
+      setError('No se pudieron cargar los personajes 😢');
+      setCharacters([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Cargar al iniciar
+  useEffect(() => {
+    loadCharacters();
+  }, []);
+
+  // Pull to refresh
+  const refresh = async (e: CustomEvent) => {
+    await loadCharacters();
+    e.detail.complete();
   };
 
   return (
-    <IonPage id="home-page">
+    <IonPage>
       <IonHeader>
         <IonToolbar>
-          <IonTitle>Inbox</IonTitle>
+          <IonTitle>Futurama Characters</IonTitle>
         </IonToolbar>
       </IonHeader>
+
       <IonContent fullscreen>
+
         <IonRefresher slot="fixed" onIonRefresh={refresh}>
-          <IonRefresherContent></IonRefresherContent>
+          <IonRefresherContent />
         </IonRefresher>
 
-        <IonHeader collapse="condense">
-          <IonToolbar>
-            <IonTitle size="large">
-              Inbox
-            </IonTitle>
-          </IonToolbar>
-        </IonHeader>
+        {/* Estado de carga */}
+        {loading && (
+          <div className="state-container">
+            <IonSpinner name="crescent" />
+            <IonText>Cargando personajes...</IonText>
+          </div>
+        )}
 
-        <IonList>
-          {messages.map(m => <MessageListItem key={m.id} message={m} />)}
-        </IonList>
+        {/* Estado de error */}
+        {error && !loading && (
+          <div className="state-container error">
+            <IonText color="danger">{error}</IonText>
+          </div>
+        )}
+
+        {/* Estado de vacio */}
+        {!loading && !error && characters.length === 0 && (
+          <div className="state-container">
+            <IonText>No hay personajes para mostrar 📭</IonText>
+          </div>
+        )}
+
+        {/* Lista de personajes */}
+        {!loading && !error && characters.length > 0 && (
+          <IonList>
+            {characters.map(character => (
+              <IonItem key={character.id}>
+                <IonAvatar slot="start">
+                  <img src={character.image} alt={character.name} />
+                </IonAvatar>
+
+                <IonLabel>
+                  <h2>{character.name}</h2>
+                  <p>Género: {character.gender}</p>
+                  <p>Estado: {character.status}</p>
+                </IonLabel>
+              </IonItem>
+            ))}
+          </IonList>
+        )}
+
       </IonContent>
     </IonPage>
   );
